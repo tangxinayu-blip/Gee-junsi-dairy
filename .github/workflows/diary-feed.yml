@@ -1,0 +1,39 @@
+name: Publish diary feed
+on:
+  schedule:
+    - cron: '*/10 * * * *'   # 每10分钟跑一次
+  workflow_dispatch: {}       # 也可手动点一键发布
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch diary JSON from Apps Script
+        env:
+          EXEC: "https://script.google.com/macros/s/AKfycbxgH9slWrGdaQ2gNAPqA-9LMjlLi3yBD-qi_pVR3LdenJ9i58BRSoW69z1zxTUppNm6kg/exec"
+          TOKEN: ""           # 如果你在 Code.gs 里设了 READ_TOKEN，就填在这里
+        run: |
+          URL="$EXEC?format=json"
+          if [ -n "$TOKEN" ]; then URL="$URL&token=$TOKEN"; fi
+          curl -L "$URL&_=$(date +%s)" -o feed.json
+          node - <<'JS'
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('feed.json','utf8'));
+          const items=d.items||[];
+          const latest=items[0]||{};
+          const esc=s=>String(s||'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+          const html=`<!doctype html><meta charset="utf-8"><title>latest</title>
+          <h1>${esc(latest.title||'(无标题)')}</h1>
+          <div><small>${esc(latest.timestamp||'')}</small></div>
+          <pre>${esc(latest.content||'')}</pre>`;
+          fs.writeFileSync('latest.html',html);
+          JS
+      - name: Commit files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add feed.json latest.html
+          git commit -m "Update diary feed" || echo "No changes"
+          git push
