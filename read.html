@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>蘑菇的日记 · 读</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "PingFang SC", "Noto Sans CJK SC", "Microsoft Yahei", sans-serif; margin: 24px; }
+    .wrap { max-width: 880px; margin: 0 auto; }
+    .note { border: 1px solid #e5e7eb; padding: 16px; border-radius: 16px; margin-bottom: 14px; box-shadow: 0 6px 18px rgba(0,0,0,.04); }
+    .note h3 { margin: 0 0 8px 0; }
+    .muted { color: #6b7280; font-size: 13px; }
+    .toolbar { display:flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+    input[type=text] { padding: 8px 10px; border-radius: 10px; border: 1px solid #d1d5db; font-size: 14px; }
+    .pill { padding: 4px 8px; border-radius: 999px; background: #f3f4f6; font-size: 12px; }
+  </style>
+  <script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxgH9slWrGdaQ2gNAPqA-9LMjlLi3yBD-qi_pVR3LdenJ9i58BRSoW69z1zxTUppNm6kg/exec';
+    const READ_TOKEN = '';
+  </script>
+</head>
+<body>
+  <div class="wrap">
+    <h1>蘑菇的日记 · 读</h1>
+    <p class="muted">此页通过 JSONP 从你的 Google Apps Script 拉取最新日记。下方按钮采用 <b>同标签页跳转</b>，线上和本地都能工作。</p>
+
+    <div class="toolbar">
+      <input type="text" id="q" placeholder="搜索标题/内容/标签…（前端搜索）">
+      <span class="pill" id="count"></span>
+      <button class="pill" id="gotoWrite" type="button">去写一篇</button>
+    </div>
+
+    <div id="list"></div>
+    <p class="muted" id="foot"></p>
+  </div>
+
+  <script>
+    function renderDiary(data) {
+      const items = (data && data.items) ? data.items : [];
+      window.__all = items;
+      draw(items);
+    }
+
+    function draw(items) {
+      const list = document.getElementById('list');
+      const count = document.getElementById('count');
+      list.innerHTML = '';
+      count.textContent = `${items.length} 篇`;
+
+      items.forEach(it => {
+        const el = document.createElement('div');
+        el.className = 'note';
+        const time = it.timestamp ? new Date(it.timestamp) : null;
+        const dateText = time ? time.toLocaleString() : '未知时间';
+        const tag = it.tag ? `<span class="pill" title="标签">${escapeHtml(it.tag)}</span>` : '';
+        const author = it.author ? `<span class="pill" title="作者">${escapeHtml(it.author)}</span>` : '';
+        el.innerHTML = `
+          <div class="muted">${dateText}</div>
+          <h3>${escapeHtml(it.title || '(无标题)')}</h3>
+          <div>${nl2br(escapeHtml(it.content))}</div>
+          <div class="muted" style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">${tag}${author}</div>
+        `;
+        list.appendChild(el);
+      });
+
+      document.getElementById('foot').textContent = '只做静态展示，不支持编辑删除；如需删除请在表格里手动处理。';
+    }
+
+    document.getElementById('q').addEventListener('input', (e) => {
+      const q = e.target.value.trim().toLowerCase();
+      if (!q) return draw(window.__all || []);
+      const filtered = (window.__all || []).filter(it => {
+        return [it.title, it.content, it.tag].some(x => (x || '').toLowerCase().includes(q));
+      });
+      draw(filtered);
+    });
+
+    document.getElementById('gotoWrite').onclick = () => { window.location.href = 'write.html'; };
+
+    function escapeHtml(str) { return (str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
+    function nl2br(str) { return (str || '').replace(/\n/g, '<br>'); }
+
+    (function () {
+      if (!SCRIPT_URL.includes('/exec')) {
+        const list = document.getElementById('list');
+        list.innerHTML = '<div class="note">请先把 <b>SCRIPT_URL</b> 改成你的 Apps Script /exec 地址。</div>';
+        return;
+      }
+      const s = document.createElement('script');
+      const tokenParam = READ_TOKEN ? ('&token=' + encodeURIComponent(READ_TOKEN)) : '';
+      s.src = SCRIPT_URL + '?callback=renderDiary' + tokenParam;
+      document.body.appendChild(s);
+    })();
+  </script>
+</body>
+</html>

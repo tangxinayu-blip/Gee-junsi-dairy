@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>蘑菇的日记 · 写</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "PingFang SC", "Noto Sans CJK SC", "Microsoft Yahei", sans-serif; margin: 24px; line-height: 1.6; }
+    .card { max-width: 720px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,.05); }
+    label { font-weight: 600; display: block; margin-top: 14px; }
+    input[type=text], textarea { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #d1d5db; font-size: 16px; }
+    textarea { min-height: 180px; resize: vertical; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .btn { margin-top: 16px; padding: 12px 16px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; }
+    .btn-primary { background: black; color: white; }
+    .btn-secondary { background: #f3f4f6; }
+    .muted { color: #6b7280; font-size: 14px; }
+    .success, .error { padding: 10px 12px; border-radius: 10px; margin-top: 12px; display:none;}
+    .success { color: #065f46; background: #ecfdf5; border: 1px solid #a7f3d0; }
+    .error { color: #7f1d1d; background: #fef2f2; border: 1px solid #fecaca; }
+  </style>
+  <script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxgH9slWrGdaQ2gNAPqA-9LMjlLi3yBD-qi_pVR3LdenJ9i58BRSoW69z1zxTUppNm6kg/exec';
+    const DEFAULT_AUTHOR = '';
+  </script>
+</head>
+<body>
+  <div class="card">
+    <h1>蘑菇的日记 · 写</h1>
+    <p class="muted">在这里写你的心事，提交后会存到 Google 表格。阅读页按钮采用 <b>同标签页跳转</b>，线上和本地都能工作。</p>
+
+    <form id="diaryForm" action="" method="POST" target="stealth">
+      <label>标题</label>
+      <input type="text" id="title" placeholder="今天也要温柔地生活～">
+
+      <div class="row">
+        <div>
+          <label>标签（可选）</label>
+          <input type="text" id="tag" placeholder="心情 / 灵感 / 生活">
+        </div>
+        <div>
+          <label>署名（可选）</label>
+          <input type="text" id="author" placeholder="蘑菇">
+        </div>
+      </div>
+
+      <label>内容</label>
+      <textarea id="content" placeholder="想写什么就写什么：）"></textarea>
+
+      <input type="hidden" name="payload" id="payload" value="{}">
+
+      <div style="display:flex; gap:8px; flex-wrap: wrap;">
+        <button class="btn btn-primary" type="submit">保存</button>
+        <button class="btn btn-secondary" type="button" id="saveDraft">存为草稿</button>
+        <button class="btn btn-secondary" type="button" id="loadDraft">取回草稿</button>
+        <button class="btn btn-secondary" type="button" id="gotoRead">去看阅读页</button>
+      </div>
+
+      <div id="ok" class="success">已提交！稍等几秒打开阅读页就能看到。</div>
+      <div id="err" class="error">提交似乎失败了（可能是脚本地址没改正确）。</div>
+
+      <iframe name="stealth" style="display:none;" id="stealth"></iframe>
+    </form>
+
+    <p class="muted">Tips：草稿保存在你的浏览器，不会上传。</p>
+  </div>
+
+  <script>
+    const form = document.getElementById('diaryForm');
+    const ok = document.getElementById('ok');
+    const err = document.getElementById('err');
+    const stealth = document.getElementById('stealth');
+
+    document.getElementById('gotoRead').onclick = () => { window.location.href = 'read.html'; };
+
+    form.addEventListener('submit', function (e) {      
+      if (!SCRIPT_URL.includes('/exec')) { e.preventDefault(); err.style.display='block'; err.textContent='请先把 SCRIPT_URL 改成你的 /exec 地址～'; return; }
+      const title = document.getElementById('title').value.trim();
+      const tag = document.getElementById('tag').value.trim();
+      const author = document.getElementById('author').value.trim() || DEFAULT_AUTHOR;
+      const content = document.getElementById('content').value.trim();
+      if (!content) { e.preventDefault(); err.style.display='block'; err.textContent='至少写点内容吧～'; return; }
+
+      const payload = { title, tag, author, content, clientInfo: navigator.userAgent + ' | ' + new Date().toISOString() };
+      document.getElementById('payload').value = JSON.stringify(payload);
+      form.action = SCRIPT_URL;
+
+      ok.style.display = 'none'; err.style.display = 'none';
+      stealth.onload = () => { ok.style.display='block'; document.getElementById('content').value = ''; localStorage.removeItem('diaryDraft'); setTimeout(()=>{ok.style.display='none';}, 4000); };
+    });
+
+    document.getElementById('saveDraft').onclick = () => {
+      const draft = {
+        title: document.getElementById('title').value,
+        tag: document.getElementById('tag').value,
+        author: document.getElementById('author').value,
+        content: document.getElementById('content').value
+      };
+      localStorage.setItem('diaryDraft', JSON.stringify(draft));
+      alert('已保存到本地草稿');
+    };
+    document.getElementById('loadDraft').onclick = () => {
+      const t = localStorage.getItem('diaryDraft');
+      if (t) {
+        const d = JSON.parse(t);
+        document.getElementById('title').value = d.title || '';
+        document.getElementById('tag').value = d.tag || '';
+        document.getElementById('author').value = d.author || '';
+        document.getElementById('content').value = d.content || '';
+      } else {
+        alert('没有草稿哦～');
+      }
+    };
+  </script>
+</body>
+</html>
