@@ -1,8 +1,8 @@
 name: Publish diary feed
 on:
   schedule:
-    - cron: '*/10 * * * *'   # 每10分钟跑一次
-  workflow_dispatch: {}       # 也可手动点一键发布
+    - cron: '*/10 * * * *'   # 每 10 分钟自动跑；想更快可改成 */2
+  workflow_dispatch: {}       # 支持手动“Run workflow”
 permissions:
   contents: write
 jobs:
@@ -10,30 +10,58 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Fetch diary JSON from Apps Script
         env:
           EXEC: "https://script.google.com/macros/s/AKfycbxgH9slWrGdaQ2gNAPqA-9LMjlLi3yBD-qi_pVR3LdenJ9i58BRSoW69z1zxTUppNm6kg/exec"
-          TOKEN: ""           # 如果你在 Code.gs 里设了 READ_TOKEN，就填在这里
+          TOKEN: ""           # 如 Code.gs 里设了 READ_TOKEN，就填这里
         run: |
           URL="$EXEC?format=json"
           if [ -n "$TOKEN" ]; then URL="$URL&token=$TOKEN"; fi
           curl -L "$URL&_=$(date +%s)" -o feed.json
+
+      - name: Build latest files (latest.html + latest3.html/json)
+        run: |
           node - <<'JS'
           const fs=require('fs');
-          const d=JSON.parse(fs.readFileSync('feed.json','utf8'));
-          const items=d.items||[];
-          const latest=items[0]||{};
+          const d=JSON.parse(fs.readFileSync('feed.json','utf8')||'{}');
+          const all=(d.items||[]);
+          const latest=all[0]||{};
+          const latest3=all.slice(0,3);
+
+          // 导出 latest.html
           const esc=s=>String(s||'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
-          const html=`<!doctype html><meta charset="utf-8"><title>latest</title>
-          <h1>${esc(latest.title||'(无标题)')}</h1>
-          <div><small>${esc(latest.timestamp||'')}</small></div>
-          <pre>${esc(latest.content||'')}</pre>`;
-          fs.writeFileSync('latest.html',html);
+          const one = it => `<!doctype html><meta charset="utf-8"><title>${esc(it.title||'latest')}</title>
+          <div style="max-width:760px;margin:24px auto;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,'PingFang SC','Noto Sans CJK SC','Microsoft Yahei',sans-serif;">
+            <h1 style="margin:0 0 6px">${esc(it.title||'(无标题)')}</h1>
+            <div style="color:#64748b;font-size:12px;margin-bottom:8px">${esc(it.timestamp||'')}</div>
+            <pre style="white-space:pre-wrap;margin:0">${esc(it.content||'')}</pre>
+          </div>`;
+          fs.writeFileSync('latest.html', one(latest));
+
+          // 导出 latest3.json
+          fs.writeFileSync('latest3.json', JSON.stringify({ok:true, items: latest3}, null, 2));
+
+          // 导出 latest3.html
+          const card = it => `
+            <article style="border:1px solid #e5e7eb;padding:12px;border-radius:12px;margin:12px 0;box-shadow:0 6px 18px rgba(0,0,0,.04);">
+              <div style="color:#64748b;font-size:12px">${esc(it.timestamp||'')}</div>
+              <h2 style="margin:6px 0 8px">${esc(it.title||'(无标题)')}</h2>
+              <pre style="white-space:pre-wrap;margin:0">${esc(it.content||'')}</pre>
+            </article>`;
+          const html = `<!doctype html><meta charset="utf-8"><title>latest 3</title>
+          <div style="max-width:760px;margin:24px auto;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,'PingFang SC','Noto Sans CJK SC','Microsoft Yahei',sans-serif;">
+            <h1 style="margin:0 0 10px">最近 3 篇</h1>
+            ${latest3.map(card).join('')}
+            <p style="color:#64748b;font-size:12px">由 GitHub Actions 自动生成</p>
+          </div>`;
+          fs.writeFileSync('latest3.html', html);
           JS
+
       - name: Commit files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add feed.json latest.html
-          git commit -m "Update diary feed" || echo "No changes"
+          git add feed.json latest.html latest3.html latest3.json
+          git commit -m "Update diary feed (latest & latest3)" || echo "No changes"
           git push
